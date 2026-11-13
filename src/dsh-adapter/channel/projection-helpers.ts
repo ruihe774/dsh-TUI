@@ -1,4 +1,4 @@
-import type { TodoPanelItem } from './types.js'
+import type { ChatRow, TodoPanelItem } from './types.js'
 /** Names the subagent delegation tools ship under (preset `toolName` values
  *  plus the CLI default); each renders as a live subagent card, never a plain
  *  tool card. `spawn_teammate` is the retired rc.1 Agent Teams tool: rc.2 has
@@ -49,6 +49,35 @@ export function toolCommandOf(argsFull: string | undefined): string | undefined 
 
 /** The ack a shell tool returns for `run_in_background: true`. */
 export const BACKGROUND_START_ACK = /^started background job (\S+)/
+
+/** Tool names that execute a shell command, across backends (the DSH
+ *  `bash`/`pwsh` tools, Claude's `Bash`/`PowerShell`, Codex's translated
+ *  `commandExecution`). A live call whose presenter already classified it
+ *  needs no name: a `terminal` card or the `exec` category is a shell run. */
+const SHELL_TOOL_NAMES = new Set(['bash', 'pwsh', 'powershell', 'commandexecution'])
+
+/** Whether one tool call is a shell command execution. */
+export function isShellToolCall(tool: { readonly name: string; readonly callView?: { readonly card: string; readonly category?: string } }): boolean {
+  if (tool.callView?.card === 'terminal' || tool.callView?.category === 'exec') return true
+  return SHELL_TOOL_NAMES.has(tool.name.toLowerCase())
+}
+
+/**
+ * The newest still-running foreground shell call in the transcript (the
+ * target of the background-command shortcut), or undefined when no shell
+ * command is running. Newest wins: parallel calls background one press at
+ * a time, most recent first.
+ */
+export function runningShellCall(rows: readonly ChatRow[]): { readonly callId: string; readonly command?: string } | undefined {
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const row = rows[index]
+    if (row?.kind !== 'tool' || row.tool === undefined || row.tool.status !== 'running') continue
+    if (!isShellToolCall(row.tool)) continue
+    const command = toolCommandOf(row.tool.argsFull ?? row.tool.argsText)
+    return { callId: row.tool.callId, ...(command === undefined ? {} : { command }) }
+  }
+  return undefined
+}
 
 /** Narrow an optional plugin event without importing its module augmentation. */
 export function todoPanelItems(data: unknown): TodoPanelItem[] | undefined {

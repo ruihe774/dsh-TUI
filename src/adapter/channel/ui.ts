@@ -96,7 +96,12 @@ export function createChannelUi(channel: ChannelUi, mode: AdapterMode, lease: Ch
         if (key === 'jobControl') {
           const control = channel.jobControl as ChannelUi['jobControl'] | undefined
           if (control === undefined) return undefined
-          const projected = methods(control, { kill: 'mutate' } as Readonly<Record<keyof typeof control, HostEffectClass>>)
+          const projected = methods(control, {
+            kill: 'mutate',
+            // Optional like watchOutput below: only a control that grew the
+            // method may be projected (methods() throws on a missing one).
+            ...(control.backgroundRunningCommand === undefined ? {} : { backgroundRunningCommand: 'mutate' }),
+          } as Readonly<Record<keyof typeof control, HostEffectClass>>)
           const watch = control.watchOutput
           if (watch === undefined) return projected
           // A renderer observation of an on-screen card (like `subscribe`):

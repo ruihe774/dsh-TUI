@@ -924,6 +924,17 @@ export interface JobControl {
    * while watched). Returns the unwatch; absent = the output is pushed.
    */
   watchOutput?(id: string): () => void
+  /**
+   * Move the currently running foreground shell command to the background
+   * (the Claude Code Ctrl+B move, on this TUI's own remappable combo): the
+   * command keeps running, its tool call returns at once and the agent
+   * carries on; the result is collected later like any background job.
+   * Returns true when the request was dispatched; the control itself
+   * notifies the outcome (including "nothing is running" and "this session
+   * cannot do that"), so a false return never needs a second toast.
+   * Absent = no job control surface at all.
+   */
+  backgroundRunningCommand?(): boolean
 }
 
 export interface StagedImageInput {

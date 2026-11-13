@@ -76,6 +76,15 @@ export interface JobsRuntime {
   /** Request cancellation by id; resolves to 'requested'/'already-finished'. */
   kill(id: string, caller?: string, reason?: string): unknown
   /**
+   * Move a still-running foreground job into the background: its waiting
+   * tool call returns at once with the job id while the work keeps
+   * running. Optional and shape-probed — the validated kernel has no such
+   * operation (its foreground wait only promotes on timeout), so the
+   * control reports unsupported until a kernel grows one; never required,
+   * never version-gated.
+   */
+  background?(id: string, caller?: string): unknown
+  /**
    * Kernel event bus (the real `JobRegistry.events` surface). Present on
    * modern kernels: lifecycle events re-read the roster, `output` events
    * pull `readAt` increments with the UI's own byte cursor. Absent on older

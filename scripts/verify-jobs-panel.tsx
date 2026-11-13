@@ -5,7 +5,8 @@
  *   注册/转换/名册消失合成 killed/removed 整条丢弃、onSettled 恰好一次、输出镜像过滤与有界、时长格式化。
  * Group B — channel 集成（真实 cordis Context + 假 agents/jobs 服务）：
  *   任务注册建卡、job_output 结果镜像进瀑布、落定 toast、存活任务消失冻结、
- *   jobControl.kill 权限传递、无 jobs 服务降级、/new 重置投影；
+ *   jobControl.kill 权限传递、命令转后台（B12：无 background 操作时明确
+ *   拒绝、形状探测到后按 owner 调用）、无 jobs 服务降级、/new 重置投影；
  *   内核事件总线（B2）：registered/output/readAt 增量、gap、awaited 落定不报 toast、
  *   removed 让前台 shell 的任务卡随记录离场；会话换绑见 B3。
  *   B10：前台 shell 不闪卡——有调用在飞时卡挂起，调用返回后才现；同名双调用等全部返回；
@@ -229,6 +230,8 @@ function makeFakeJobs(currentOwner: () => string | undefined = () => undefined):
   update(snap: Record<string, unknown>): void
   remove(id: string): void
   kills: string[]
+  backgrounds: string[]
+  enableBackground(): void
 } {
   const snapshots = new Map<string, Record<string, unknown>>()
   // 内核口径：`list(caller)` 只返回 `owner === undefined || owner.id === caller`
@@ -238,15 +241,23 @@ function makeFakeJobs(currentOwner: () => string | undefined = () => undefined):
   const changed = new Set<(owner: unknown) => void>()
   const done = new Set<(snap: unknown, owner: unknown) => void>()
   const kills: string[] = []
+  const backgrounds: string[] = []
   const fire = (): void => { for (const listener of changed) listener(undefined) }
+  const runtime: Record<string, unknown> = {
+    list: (caller?: string) => [...snapshots.values()].filter(snap => owners.get(String(snap.id)) === undefined || owners.get(String(snap.id)) === caller),
+    kill: (id: string) => { kills.push(id); return 'requested' },
+    onJobsChanged: (listener: (owner: unknown) => void) => { changed.add(listener); return () => changed.delete(listener) },
+    onJobDone: (listener: (snap: unknown, owner: unknown) => void) => { done.add(listener); return () => done.delete(listener) },
+  }
   return {
     kills,
-    runtime: {
-      list: (caller?: string) => [...snapshots.values()].filter(snap => owners.get(String(snap.id)) === undefined || owners.get(String(snap.id)) === caller),
-      kill: (id: string) => { kills.push(id); return 'requested' },
-      onJobsChanged: (listener: (owner: unknown) => void) => { changed.add(listener); return () => changed.delete(listener) },
-      onJobDone: (listener: (snap: unknown, owner: unknown) => void) => { done.add(listener); return () => done.delete(listener) },
+    backgrounds,
+    // 校验线内核没有 background 操作：夹具默认也不给，enableBackground 后
+    // 才长出这个可选方法（job-projection 形状探测、非版本门）。
+    enableBackground() {
+      runtime.background = (id: string, caller?: string) => { backgrounds.push(`${id}:${String(caller)}`); return 'requested' }
     },
+    runtime,
     register(snap) { snapshots.set(snap.id as string, snap); owners.set(String(snap.id), currentOwner()); fire() },
     update(snap) { snapshots.set(snap.id as string, snap); fire() },
     remove(id) { snapshots.delete(id); fire() },
@@ -341,6 +352,28 @@ const NOW = Date.now()
     initial.steered.join('|'),
   )
 
+  // 命令转后台（Alt+B）：前台 shell 的任务被卡挂起期间是候选。校验线
+  // 内核没有 background 操作 → 明确拒绝；注册表长出该方法（形状探测）
+  // 后按 owner  fences 调用。
+  emit('session/event', initial.session, {
+    type: 'tool/call',
+    data: { callId: 'cb1', name: 'bash', arguments: JSON.stringify({ command: 'sleep 500', description: 'long sleep' }) },
+  })
+  fake.register({ id: 'bash-bg', kind: 'bash', label: 'sleep 500', status: 'running', startedAt: NOW })
+  check('B12 前台命令的任务被挂起（不建卡）', await settled(() => channel.backgroundJobs.some(job => job.id === 'bash-bg')) && !jobRows(channel).some(row => row.job?.id === 'bash-bg'))
+  const unsupportedBefore = channel.notifications.length
+  check('B12 内核无 background 操作：转后台被明确拒绝', channel.jobControl.backgroundRunningCommand?.() === false
+    && channel.notifications.length > unsupportedBefore
+    && channel.notifications.some(item => item.text.includes('cannot move a running command')), JSON.stringify(channel.notifications.map(item => item.text)))
+  fake.enableBackground()
+  check('B12 注册表支持后：转后台按会话 owner 调用', channel.jobControl.backgroundRunningCommand?.() === true && fake.backgrounds.join(',') === 'bash-bg:agent-a', fake.backgrounds.join(','))
+  check('B12 转后台成功有确认提示', channel.notifications.some(item => item.text.includes('Moved the command to the background')), JSON.stringify(channel.notifications.map(item => item.text)))
+  emit('session/event', initial.session, {
+    type: 'tool/result',
+    data: { message: { source: { callId: 'cb1' }, content: [{ type: 'tool-result', content: [{ type: 'text', text: '[still running; moved to background job bash-bg]' }] }] } },
+  })
+  check('B12 调用返回后被挂起的卡现形', await settled(() => jobRows(channel).some(row => row.job?.id === 'bash-bg' && row.job?.status === 'running')))
+
   // 启动 ack（started background job <id>）先于注册到达：命令暂存，注册后挂上。
   emit('session/event', initial.session, {
     type: 'tool/call',
@@ -381,6 +414,7 @@ const NOW = Date.now()
   await sleep(50) // 固定窗:探针 无 jobs 服务时快照必须始终为空（轮询空条件会立即返回）
   check('B7 无 jobs 服务：快照为空', channel.backgroundJobs.length === 0)
   check('B7 无 jobs 服务：kill 安全返回 false', channel.jobControl.kill('pwsh-9') === false)
+  check('B7 无 jobs 服务：转后台安全返回 false', channel.jobControl.backgroundRunningCommand?.() === false)
 }
 
 // ---------------------------------------------------------------------------

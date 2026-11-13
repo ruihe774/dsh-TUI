@@ -131,6 +131,7 @@ While a turn is running, the `/` overlay groups commands by their impact on the 
 | `Ctrl+O` (⌘O) | expand/collapse details (full thinking, tool args and output) |
 | `Ctrl+E` | in input = cursor to line end; in transcript = expand/collapse hidden old messages |
 | `Ctrl+P` | toggle the loaded-context panel at startup (works when the panel is on screen) |
+| `Alt+Shift+B` | move the currently running foreground shell command to the background (remappable under `/settings` → `Shortcuts`): it keeps running, its tool call returns at once and the agent carries on; collect the output later in `/jobs`. Needs backend support (the Claude backend supports it; the DSH kernel has no such operation yet, so the key says so instead of pretending) |
 | `?` | empty input = open shortcut/command help menu |
 
 ### 2.3 Search
@@ -369,6 +370,7 @@ The command menu = built-in commands (aliases included) + DSH registry commands 
 | `/clear` | none | clear the current session view (reset expand/selection state) |
 | `/compact` | none | compact session history (prompts when nothing to compact) |
 | `/export` | none | export the session as Markdown to the project the session opened in (an Agent `working_directory` cd does not move it) |
+| `/copy` | none | copy the latest agent response (its Markdown source) to the clipboard: OSC 52, plus the native clipboard tool or tmux buffer when available |
 | `/btw` | `<问题>` | side question: single turn, no tools, doesn't interrupt the main turn, not written to history |
 | `/trace` | none | open the trace scene (same as `Ctrl+T`) |
 | `/rewind` | none | rewind selector (same as double-press Esc on empty input); **a running turn is cancelled first** |

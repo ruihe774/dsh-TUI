@@ -153,6 +153,39 @@ export function createJobProjection(
       }
       return true
     },
+    backgroundRunningCommand() {
+      // The foreground candidate is a job this projection is HOLDING: a
+      // shell tool registered its command and its call is still in flight
+      // (see `heldJobs`). Newest held job wins — parallel calls background
+      // one press at a time, matching the core's newest-first rule.
+      let candidate: BackgroundJobState | undefined
+      for (const jobId of heldJobs.keys()) {
+        const job = store.get(jobId)
+        if (job === undefined || (job.status !== 'running' && job.status !== 'stopping')) continue
+        if (candidate === undefined || job.startedAt >= candidate.startedAt) candidate = job
+      }
+      if (candidate === undefined) {
+        deps.notify(t('jobs-background-none'), { color: 'warning', timeoutMs: 4000 })
+        return false
+      }
+      const jobs = jobsRuntime
+      if (jobs?.background === undefined) {
+        // The validated kernel cannot detach a foreground wait (it only
+        // promotes on timeout): say so instead of faking it with a kill.
+        deps.notify(t('jobs-background-unsupported'), { color: 'warning', timeoutMs: 4000 })
+        return false
+      }
+      try {
+        jobs.background(candidate.id, sessionCaller())
+      } catch {
+        deps.notify(t('jobs-background-failed', { label: candidate.label }), { color: 'error', timeoutMs: 6000 })
+        return false
+      }
+      // The tool call now returns with the job id and closes, which
+      // releases the card hold through the normal result path.
+      deps.notify(t('jobs-background-done', { label: candidate.label }), { color: 'success', timeoutMs: 6000 })
+      return true
+    },
   }
 
   /**

@@ -95,6 +95,7 @@ export function fakeClaudeSdk(init: (index: number, options: FakeQueryOptions) =
       accountInfo: control('accountInfo'),
       rewindFiles: control('rewindFiles'),
       stopTask: control('stopTask'),
+      backgroundTasks: control('backgroundTasks'),
       close() { fake.closed = true; ended = true; flush() },
       [Symbol.asyncIterator]() {
         return {

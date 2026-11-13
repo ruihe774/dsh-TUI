@@ -204,6 +204,7 @@ export type ShortcutActionId =
   | 'undo'
   | 'sidePanel'
   | 'sidePanelZoom'
+  | 'backgroundCommand'
 
 export interface ShortcutActionSpec {
   readonly id: ShortcutActionId
@@ -252,6 +253,12 @@ export const SHORTCUT_ACTIONS: readonly ShortcutActionSpec[] = [
   // 键位；tmux 用户的前缀会吞掉 Ctrl+B，可在 /settings → Shortcuts 重映射）。
   { id: 'sidePanel', defaults: ['ctrl+b'] },
   { id: 'sidePanelZoom', defaults: ['alt+z'] },
+  // 把当前在前台运行的 shell 命令转后台（Claude Code 里是 Ctrl+B；这里
+  // Ctrl+B 已归侧栏）：命令继续跑、工具调用立刻返回、agent 接着干活，
+  // 事后在 /jobs 里看输出。裸 alt+b 不能做默认：传统终端把它发成 ESC b，
+  // 输入层与 alt+left 同形（readline 逐词回退，已在固定保留集里）；故默认
+  // alt+shift+b（ESC B），扩展键盘协议下能区分 ESC b 的终端再附 alt+b 别名。
+  { id: 'backgroundCommand', defaults: ['alt+shift+b', 'alt+b'] },
 ]
 
 /** Actions that refuse the macOS ctrl↔Cmd alias (see `exactPrimary`). */

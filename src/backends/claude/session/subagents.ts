@@ -73,6 +73,16 @@ export function sessionTaskCapabilities(context: {
     },
     tasks: {
       stop: taskId => stopTask(taskId),
+      // Ctrl+B in the CLI, as a control request: the blocking Bash call
+      // returns at once with its background acknowledgement and the turn
+      // carries on. Shape-probed like stopTask — an older CLI (or one
+      // started with background tasks disabled, which throws) simply
+      // reports false / rejects and the channel says so.
+      background: async callId => {
+        const query = context.run.query as Partial<Pick<Query, 'backgroundTasks'>>
+        if (typeof query.backgroundTasks !== 'function' || context.disposing) return false
+        return await query.backgroundTasks(callId)
+      },
       readOutput: taskId => {
         const file = translator.outputFileOf(taskId)
         if (file === undefined) return Promise.reject(new Error(claudeText('claude-task-output-unknown', { id: taskId })))

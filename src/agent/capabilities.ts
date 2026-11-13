@@ -291,9 +291,18 @@ export interface SessionCapabilities {
   /**
    * Background tasks: `stop` asks the backend to stop one; `readOutput`
    * reads the tail of its output (bounded by the backend; rejects when the
-   * task has no readable output).
+   * task has no readable output). `background` moves the foreground task
+   * started by the tool call `callId` into the background (the Claude Code
+   * Ctrl+B move): the process keeps running, the blocking call returns at
+   * once handing the model the task id, and the turn carries on. Resolves
+   * false when that call names no foreground task; absent = the backend
+   * cannot do it at all.
    */
-  readonly tasks?: { stop(taskId: string): Promise<boolean>; readOutput?(taskId: string): Promise<string> }
+  readonly tasks?: {
+    stop(taskId: string): Promise<boolean>
+    readOutput?(taskId: string): Promise<string>
+    background?(callId: string): Promise<boolean>
+  }
   /**
    * The durable record behind "load earlier": read-only, synchronous and
    * bounded (a user click waits for it). `record()` replays everything the

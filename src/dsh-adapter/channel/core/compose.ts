@@ -63,6 +63,7 @@ import { createSessionControls, localCommandsFor } from './session-controls.js'
 import { createCoreSessionActions } from './sessions.js'
 import { createWorkspaceActions } from '../workspace-actions.js'
 import type { ChannelHost } from '../channel-host.js'
+import { runningShellCall } from '../projection-helpers.js'
 import { createBackendOpener, createSessionSwitch, SESSION_MOUNT_LEDGER, type NewSessionOpener, type ResumeSessionOpener } from './session-switch.js'
 import { createAgentTrajectorySource } from '../../trajectory/agent-source.js'
 
@@ -677,6 +678,29 @@ export function createCoreChannel(
         if (job === undefined || (job.status !== 'running' && job.status !== 'stopping')) return false
         void tasks.stop(id).then(stopped => {
           if (!stopped && owner.current()) notify(t('jobs-kill-failed', { id }), { color: 'error', timeoutMs: 6000 })
+        }, (error: unknown) => {
+          if (owner.current()) notify(t('capability-failed', { name: 'jobs', err: error instanceof Error ? error.message : String(error) }), { color: 'error', timeoutMs: 8000 })
+        })
+        return true
+      },
+      backgroundRunningCommand() {
+        const candidate = runningShellCall(state.rows)
+        if (candidate === undefined) {
+          notify(t('jobs-background-none'), { color: 'warning', timeoutMs: 4000 })
+          return false
+        }
+        const background = binding.session.capabilities.tasks?.background
+        if (background === undefined) {
+          notify(t('jobs-background-unsupported'), { color: 'warning', timeoutMs: 4000 })
+          return false
+        }
+        const label = candidate.command ?? candidate.callId
+        void background(candidate.callId).then(backgrounded => {
+          if (!owner.current()) return
+          notify(
+            backgrounded ? t('jobs-background-done', { label }) : t('jobs-background-failed', { label }),
+            backgrounded ? { color: 'success', timeoutMs: 6000 } : { color: 'error', timeoutMs: 6000 },
+          )
         }, (error: unknown) => {
           if (owner.current()) notify(t('capability-failed', { name: 'jobs', err: error instanceof Error ? error.message : String(error) }), { color: 'error', timeoutMs: 8000 })
         })

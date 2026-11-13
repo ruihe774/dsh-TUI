@@ -2206,6 +2206,11 @@ const dict = {
   'jobs-toast-failed': { zh: '后台任务失败：{{label}}（{{id}} · {{detail}}）', en: 'Background job failed: {{label}} ({{id}} · {{detail}})' },
   'jobs-toast-killed': { zh: '后台任务已停止：{{label}}（{{id}} · 用时 {{duration}}）', en: 'Background job killed: {{label}} ({{id}} · {{duration}})' },
   'jobs-kill-failed': { zh: '无法停止任务 {{id}}（任务不存在或任务服务未挂载）', en: 'Could not kill job {{id}} (unknown job or jobs service not mounted)' },
+  'jobs-background-none': { zh: '当前没有正在前台运行的命令可转后台', en: 'No foreground shell command is currently running to move to the background' },
+  'jobs-background-unsupported': { zh: '当前会话不支持把运行中的命令转入后台', en: 'This session cannot move a running command to the background' },
+  'jobs-background-done': { zh: '已把命令转入后台：{{label}}（在 /jobs 里看输出）', en: 'Moved the command to the background: {{label}} (watch it in /jobs)' },
+  'jobs-background-failed': { zh: '把命令转入后台失败：{{label}}', en: 'Could not move the command to the background: {{label}}' },
+  'help-background-command': { zh: '{{key}} 命令转后台', en: '{{key}} background cmd' },
   'jobs-detail-unknown': { zh: '状态未知', en: 'status unknown' },
   'jobs-steer-killed': { zh: '我通过 /jobs 面板停止了后台任务 {{id}}（{{label}}）', en: 'I killed background job {{id}} ({{label}}) via the /jobs panel' },
   // 连续任务卡成组（JobGroupHeader）：一批 run_in_background 连着落下时，

@@ -7,7 +7,10 @@
  *    from the command's acknowledgement, the status-line chip while it runs,
  *    `task_updated` / `task_notification` settle it once (one toast), the
  *    notification turn; a foreground Bash (`is_backgrounded:false`) stays
- *    card-only; a foreground Bash moved to the background becomes a job;
+ *    card-only; a foreground Bash moved to the background becomes a job —
+ *    including via `jobControl.backgroundRunningCommand` (the Alt+Shift+B
+ *    shortcut → `q.backgroundTasks(callId)`), which refuses loudly when
+ *    nothing is running;
  *  - `tasks.snapshot` replace semantics: a job missing from the level is
  *    settled (inferred, no toast, "status unknown"), a later real end still
  *    wins, a job back in the level runs again;
@@ -87,6 +90,7 @@ const lines = (name: string): Line[] => readFileSync(join(FIXTURES, `${name}.jso
 async function openChannel(env?: Record<string, string>): Promise<{ channel: ChannelState; query: FakeQuery; session: Awaited<ReturnType<typeof openClaudeSession>> }> {
   const fake = fakeClaudeSdk(() => ({ capabilities: ['msg_lifecycle_v1', 'interrupt_receipt_v1'] }), {
     stopTask: () => undefined,
+    backgroundTasks: () => true,
     interrupt: () => ({ still_queued: [] }),
   })
   const session = await openClaudeSession(claudeDeps(fake.sdk, { prefs: memoryClaudePrefs(), ...(env === undefined ? {} : { env }) }))
@@ -159,8 +163,25 @@ async function feed(name: string, session: Awaited<ReturnType<typeof openClaudeS
     query.emit({ type: 'system', subtype: 'task_started', task_id: 'fg-bash', tool_use_id: 'call-fg', description: 'long sleep', is_backgrounded: false, task_type: 'local_bash' })
     await tick()
     check('… still no job while it runs in the foreground', channel.backgroundJobs.length === 0)
+    // The background-command shortcut (Alt+Shift+B): the channel finds the
+    // running foreground Bash call and the session asks the CLI to move it.
+    check('backgroundRunningCommand dispatches tasks.background for the running Bash call', channel.jobControl.backgroundRunningCommand?.() === true
+      && await settled(() => query.calls.some(call => call.method === 'backgroundTasks' && call.args[0] === 'call-fg')), query.calls.map(call => call.method))
+    check('… and confirms it to the user', channel.notifications.some(item => item.text === t('jobs-background-done', { label: 'sleep 60' })), channel.notifications.map(item => item.text))
     query.emit({ type: 'system', subtype: 'task_updated', task_id: 'fg-bash', patch: { is_backgrounded: true } })
     check('a foreground Bash moved to the background becomes a job (its command kept)', await settled(() => channel.backgroundJobs.some(job => job.id === 'fg-bash' && job.status === 'running' && job.command === 'sleep 60' && job.label === 'long sleep')), channel.backgroundJobs)
+  } finally {
+    channel.releaseContributions()
+    await session.dispose()
+  }
+}
+
+// ── background shortcut with nothing running ─────────────────────────────
+{
+  const { channel, session } = await openChannel()
+  try {
+    check('backgroundRunningCommand with nothing running refuses and says so', channel.jobControl.backgroundRunningCommand?.() === false
+      && channel.notifications.some(item => item.text === t('jobs-background-none')), channel.notifications.map(item => item.text))
   } finally {
     channel.releaseContributions()
     await session.dispose()

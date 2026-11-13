@@ -86,6 +86,10 @@ check('default editor matches ctrl+g', actionMatches('editor', 'g', { ctrl: true
 check('default trajectory matches ctrl+t', actionMatches('trajectory', 't', { ctrl: true }))
 check('default history matches ctrl+r', actionMatches('history', 'r', { ctrl: true }))
 check('default undo matches ctrl+z', actionMatches('undo', 'z', { ctrl: true }))
+check('default backgroundCommand matches alt+shift+b (meta+shift)', actionMatches('backgroundCommand', 'B', { meta: true, shift: true }))
+check('default backgroundCommand matches the alt+b alias (extended-keyboard terminals)', actionMatches('backgroundCommand', 'b', { meta: true }))
+check('backgroundCommand does NOT match bare b or ctrl+b (side panel keeps it)', !actionMatches('backgroundCommand', 'b', {}) && !actionMatches('backgroundCommand', 'b', { ctrl: true }))
+check('backgroundCommand display string', effectiveComboString('backgroundCommand') === 'alt+shift+b, alt+b', effectiveComboString('backgroundCommand'))
 check('undo display string', effectiveComboString('undo') === 'ctrl+z', effectiveComboString('undo'))
 // macOS primary-modifier polarity, asserted on Linux via the platformAlias
 // seam: ordinary ctrl combos still alias to Cmd, `undo` (exactPrimary) must
@@ -145,6 +149,8 @@ check('no conflict: showAll restating its fixed-reserved default ctrl+e', !draft
 check('conflict: showAll claiming ctrl+a (dashboard owns it)', draftComboConflicts('showAll', ['ctrl+a']))
 check('conflict: dashboard claiming ctrl+e (showAll owns it)', draftComboConflicts('dashboard', ['ctrl+e']))
 check('conflict: another action cannot borrow the fixed ctrl+u', draftComboConflicts('dashboard', ['ctrl+u']))
+check('conflict: sidePanel → alt+shift+b refused (owned by backgroundCommand)', draftComboConflicts('sidePanel', ['alt+shift+b']))
+check('no conflict: backgroundCommand restating alt+shift+b', !draftComboConflicts('backgroundCommand', ['alt+shift+b']))
 resetKeymapOverrides()
 
 // ---- hints follow remaps ----------------------------------------------------
@@ -167,6 +173,7 @@ check('hint: primary combo is the first remapped entry', primaryComboString('tra
   const helpScreen = () => viewportLines(helpTerm, 20).join('\n')
   check('hint: help menu shows remapped verbose-output key', await settled(() => helpScreen().includes('alt+o for verbose output')), helpScreen())
   check('hint: help menu shows remapped history key', helpScreen().includes('alt+r to search history'))
+  check('hint: help menu shows the background-command key', helpScreen().includes('alt+shift+b background cmd'), helpScreen())
   check('hint: help menu keeps unmapped defaults', helpScreen().includes('ctrl+t to open trajectory'))
   helpApp.unmount()
 }
@@ -203,6 +210,7 @@ function makeStreams(target = term) {
 const listeners = new Set()
 const notifications = []
 const rows = []
+let backgroundCalls = 0
 const channel = {
   version: 0,
   rows,
@@ -238,6 +246,7 @@ const channel = {
   commandCompletions: () => [],
   contextSegments: { system: 0, prompt: 0, assistant: 0, thinking: 0, tools: 0 },
   notify(text, options) { notifications.push({ text: String(text), options }) },
+  jobControl: { kill: () => false, backgroundRunningCommand: () => { backgroundCalls += 1; return true } },
   pushLocal() {},
   subscribe(l) { listeners.add(l); return () => listeners.delete(l) },
   emit() { channel.version += 1; for (const l of listeners) l() },
@@ -383,6 +392,13 @@ check('remapped alt+g editor key does not type g', promptText() !== 'g', JSON.st
 check('remapped editor key reached the editor path (notify seen)', editorNotice, JSON.stringify(notifications.map(n => n.text)))
 check('default ctrl+g no longer matches after remap', !actionMatches('editor', 'g', { ctrl: true }))
 resetKeymapOverrides()
+
+// Alt+Shift+B (ESC B; bare ESC b is Alt+Left to the input layer) reaches
+// Chat's background-command branch: the stub job control is called and no
+// 'B' lands in the prompt.
+stdin.write('\x1bB')
+check('alt+shift+b backgrounds the running command via jobControl', await settled(() => backgroundCalls === 1), String(backgroundCalls))
+check('alt+shift+b does not type a bare B', promptText() !== 'B', JSON.stringify(promptText()))
 
 instance.unmount()
 

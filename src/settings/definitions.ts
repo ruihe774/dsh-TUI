@@ -726,4 +726,10 @@ export const SHORTCUT_FIELD_META: Record<ShortcutActionId, { label: string; zh: 
     hintEn: d => `Zoom the active side panel (chat keeps its minimum width). Default: ${d}.`,
     hintZh: d => `缩放当前侧栏面板（聊天列保留最小宽度）。默认 ${d}。`,
   },
+  backgroundCommand: {
+    label: 'Background running command shortcut',
+    zh: '命令转后台快捷键',
+    hintEn: d => `Move the currently running foreground shell command to the background: it keeps running, its tool call returns at once and the agent carries on (collect the output later in /jobs). Default: ${d}. Needs backend support; sessions that cannot do it say so.`,
+    hintZh: d => `把当前前台运行的 shell 命令转入后台：命令继续跑、工具调用立即返回、agent 接着干活（之后在 /jobs 看输出）。默认 ${d}。需要后端支持，不支持的会话会明确提示。`,
+  },
 }

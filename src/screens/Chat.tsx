@@ -5810,6 +5810,20 @@ export function Chat({
       }
       return
     }
+    if (actionMatches('backgroundCommand', input, key)) {
+      // Background the running shell command (default Alt+Shift+B; Claude Code's
+      // Ctrl+B, which here belongs to the side panel): the command keeps
+      // running, its tool call returns at once and the agent carries on.
+      // The control itself reports "nothing running" / "unsupported"; only
+      // a channel with no job control at all needs the fallback toast.
+      if (channel.jobControl?.backgroundRunningCommand === undefined) {
+        channel.notify(t('jobs-background-unsupported'), { color: 'warning', timeoutMs: 4000 })
+      } else {
+        channel.jobControl.backgroundRunningCommand()
+      }
+      event.stopImmediatePropagation()
+      return
+    }
     if (actionMatches('trajectory', input, key)) {
       // The trajectory scene key (default Ctrl+T) opens it at any point in
       // the session.
